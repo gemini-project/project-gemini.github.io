@@ -1,0 +1,63 @@
+bigheader: "Reference Documentation"
+abstract: "Design documentation, concept definitions, and references for APIs and CLIs."
+toc:
+- title: Reference Documentation
+  path: /docs/reference/
+
+- title: Gemini API
+  section:
+  - title: Gemini API Overview
+    path: /docs/api/
+  - title: Accessing the API
+    section:
+    - title: Overview
+      path: /docs/admin/accessing-the-api/
+    - title: Authenticating
+      path: /docs/admin/authentication/
+    - title: Using Authorization Plugins
+      path: /docs/admin/authorization/
+    - title: Using Admission Controllers
+      path: /docs/admin/admission-controllers/
+    - title: Managing Service Accounts
+      path: /docs/admin/service-accounts-admin/
+  - title: Gemini API Operations
+    path: /docs/api-reference/v1/operations/
+  - title: Gemini API Definitions
+    path: /docs/api-reference/v1/definitions/
+
+- title: gemctl CLI
+  section:
+  - title: gemctl Overview
+    path: /docs/user-guide/gemctl-overview/
+
+- title: gem-apiserver CLI
+  path: /docs/admin/gem-apiserver/
+
+- title: gem-scheduler CLI
+  path: /docs/admin/gem-scheduler/
+
+- title: gemlet CLI
+  path: /docs/admin/gemlet/
+
+- title: gem-controller-manager CLI
+  path: /docs/admin/gem-controller-manager/
+
+- title: Glossary
+  section:
+  - title: Projects
+    path: /docs/user-guide/projects/
+  - title: Clusters
+    path: /docs/user-guide/pods/
+  - title: Labels and Selectors
+    path: /docs/user-guide/labels/
+  - title: Replication Controller
+    path: /docs/user-guide/replication-controller/
+  - title: Services
+    path: /docs/user-guide/services/
+
+- title: Gemini Design Docs
+  section:
+  - title: Gemini Architecture
+    path: https://github.com/gemini-project/gemini/docs/design/architecture.md
+  - title: Gemini Design Overview
+    path: https://github.com/gemini-project/gemini/docs/design/

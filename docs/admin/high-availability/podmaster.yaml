@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: scheduler-master
+spec:
+  hostNetwork: true
+  containers:
+  - name: scheduler-elector
+    image: gcr.io/google_containers/podmaster:1.1
+    command:
+    - /podmaster
+    - --etcd-servers=http://127.0.0.1:4001
+    - --key=scheduler
+    - --source-file=/gemini/gem-scheduler.manifest
+    - --dest-file=/manifests/gem-scheduler.manifest
+    volumeMounts:
+    - mountPath: /gemini
+      name: gem
+      readOnly: true
+    - mountPath: /manifests
+      name: manifests
+  - name: controller-manager-elector
+    image: gcr.io/google_containers/podmaster:1.1
+    command:
+    - /podmaster
+    - --etcd-servers=http://127.0.0.1:4001
+    - --key=controller
+    - --source-file=/gemini/gem-controller-manager.manifest
+    - --dest-file=/manifests/gem-controller-manager.manifest
+    terminationMessagePath: /dev/termination-log
+    volumeMounts:
+    - mountPath: /gemini
+      name: gem
+      readOnly: true
+    - mountPath: /manifests
+      name: manifests
+  volumes:
+  - hostPath:
+      path: /srv/gemini
+    name: gem
+  - hostPath:
+      path: /etc/gemini/manifests
+    name: manifests

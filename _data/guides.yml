@@ -1,0 +1,55 @@
+bigheader: "Guides"
+abstract: "How to get started using Gemini"
+toc:
+- title: Guides
+  path: /docs/
+
+- title: Getting Started
+  section:
+  - title: What is Gemini?
+    path: /docs/whatisgem/
+  - title: Downloading Gemini
+    path: /docs/getting-started-guides/binary_release/
+  - title: Hello World Walkthrough
+    path: /docs/hellonode/
+  - title: Gemini 101
+    path: /docs/user-guide/walkthrough/
+  - title: Gemini 201
+    path: /docs/user-guide/walkthrough/gem201/
+
+- title: User Guide
+  path: /docs/user-guide/
+
+- title: Admin Guide
+  path: /docs/admin/
+
+- title: Running Gemini
+  section:
+  - title: Picking the Right Solution
+    path: /docs/getting-started-guides/
+  - title: Running Gemini on Your Local Machine
+    section:
+    - title: Running Gemini Locally via Vagrant
+      path: /docs/getting-started-guides/vagrant/
+  - title: Running Gemini on Baremetal Servers
+    section:
+    - title: Getting Started From Scratch
+      path: /docs/getting-started-guides/scratch/
+
+- title: Configuring Gemini
+  section:
+  - title: Using Configuration Files
+    path: /docs/user-guide/simple-yaml/
+  - title: Best Practices for Configuration
+    path: /docs/user-guide/config-best-practices/
+  - title: Configuring Clusters
+    path: /docs/user-guide/configuring-clusters/
+  - title: Sharing Cluster Access with gemconfig
+    path: /docs/user-guide/sharing-clusters/
+  - title: Using Environment Variables
+    path: /docs/user-guide/environment-guide/
+  - title: Managing Compute Resources
+    path: /docs/user-guide/compute-resources/
+  - title: Using gemctl to Manage Resources
+    path: /docs/user-guide/working-with-resources/
+

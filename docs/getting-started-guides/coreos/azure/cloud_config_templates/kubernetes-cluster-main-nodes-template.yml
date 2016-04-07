@@ -1,0 +1,335 @@
+## This file is used as input to deployment script, which amends it as needed.
+## More specifically, we need to add environment files for as many nodes as we
+## are going to deploy.
+
+write_files:
+  - path: /opt/bin/curl-retry.sh
+    permissions: '0755'
+    owner: root
+    content: |
+      #!/bin/sh -x
+      until curl $@
+      do sleep 1
+      done
+
+coreos:
+  update:
+    group: stable
+    reboot-strategy: off
+  units:
+    - name: systemd-networkd-wait-online.service
+      drop-ins:
+        - name: 50-check-github-is-reachable.conf
+          content: |
+            [Service]
+            ExecStart=/bin/sh -x -c \
+              'until curl --silent --fail https://status.github.com/api/status.json | grep -q \"good\"; do sleep 2; done'
+
+    - name: weave-network.target
+      enable: true
+      content: |
+        [Unit]
+        Description=Weave Network Setup Complete
+        Documentation=man:systemd.special(7)
+        RefuseManualStart=no
+        After=network-online.target
+        [Install]
+        WantedBy=multi-user.target
+        WantedBy=gemini-master.target
+        WantedBy=gemini-node.target
+
+    - name: gemini-master.target
+      enable: true
+      command: start
+      content: |
+        [Unit]
+        Description=Gemini Cluster Master
+        Documentation=http://gemin.io/
+        RefuseManualStart=no
+        After=weave-network.target
+        Requires=weave-network.target
+        ConditionHost=gem-00
+        Wants=gem-apiserver.service
+        Wants=gem-scheduler.service
+        Wants=gem-controller-manager.service
+        Wants=gem-proxy.service
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: gemini-node.target
+      enable: true
+      command: start
+      content: |
+        [Unit]
+        Description=Gemini Cluster Node
+        Documentation=http://gemin.io/
+        RefuseManualStart=no
+        After=weave-network.target
+        Requires=weave-network.target
+        ConditionHost=!gem-00
+        Wants=gem-proxy.service
+        Wants=gemlet.service
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: 10-weave.network
+      runtime: false
+      content: |
+        [Match]
+        Type=bridge
+        Name=weave*
+        [Network]
+
+    - name: install-weave.service
+      enable: true
+      content: |
+        [Unit]
+        After=network-online.target
+        After=docker.service
+        Before=weave.service
+        Description=Install Weave
+        Documentation=http://docs.weave.works/
+        Requires=network-online.target
+        [Service]
+        EnvironmentFile=-/etc/weave.%H.env
+        EnvironmentFile=-/etc/weave.env
+        Type=oneshot
+        RemainAfterExit=yes
+        TimeoutStartSec=0
+        ExecStartPre=/bin/mkdir -p /opt/bin/
+        ExecStartPre=/opt/bin/curl-retry.sh \
+          --silent \
+          --location \
+          git.io/weave \
+          --output /opt/bin/weave
+        ExecStartPre=/usr/bin/chmod +x /opt/bin/weave
+        ExecStart=/opt/bin/weave setup
+        [Install]
+        WantedBy=weave-network.target
+        WantedBy=weave.service
+
+    - name: weaveproxy.service
+      enable: true
+      content: |
+        [Unit]
+        After=install-weave.service
+        After=docker.service
+        Description=Weave proxy for Docker API
+        Documentation=http://docs.weave.works/
+        Requires=docker.service
+        Requires=install-weave.service
+        [Service]
+        EnvironmentFile=-/etc/weave.%H.env
+        EnvironmentFile=-/etc/weave.env
+        ExecStartPre=/opt/bin/weave launch-proxy --rewrite-inspect --without-dns
+        ExecStart=/usr/bin/docker attach weaveproxy
+        Restart=on-failure
+        ExecStop=/opt/bin/weave stop-proxy
+        [Install]
+        WantedBy=weave-network.target
+
+    - name: weave.service
+      enable: true
+      content: |
+        [Unit]
+        After=install-weave.service
+        After=docker.service
+        Description=Weave Network Router
+        Documentation=http://docs.weave.works/
+        Requires=docker.service
+        Requires=install-weave.service
+        [Service]
+        TimeoutStartSec=0
+        EnvironmentFile=-/etc/weave.%H.env
+        EnvironmentFile=-/etc/weave.env
+        ExecStartPre=/opt/bin/weave launch-router $WEAVE_PEERS
+        ExecStart=/usr/bin/docker attach weave
+        Restart=on-failure
+        ExecStop=/opt/bin/weave stop-router
+        [Install]
+        WantedBy=weave-network.target
+
+    - name: weave-expose.service
+      enable: true
+      content: |
+        [Unit]
+        After=install-weave.service
+        After=weave.service
+        After=docker.service
+        Documentation=http://docs.weave.works/
+        Requires=docker.service
+        Requires=install-weave.service
+        Requires=weave.service
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        TimeoutStartSec=0
+        EnvironmentFile=-/etc/weave.%H.env
+        EnvironmentFile=-/etc/weave.env
+        ExecStart=/opt/bin/weave expose
+        ExecStop=/opt/bin/weave hide
+        [Install]
+        WantedBy=weave-network.target
+
+    - name: install-gemini.service
+      enable: true
+      content: |
+        [Unit]
+        After=network-online.target
+        Before=gem-apiserver.service
+        Before=gem-controller-manager.service
+        Before=gemlet.service
+        Before=gem-proxy.service
+        Description=Download Gemini Binaries
+        Documentation=http://gemin.io/
+        Requires=network-online.target
+        [Service]
+        Environment=GEM_RELEASE_TARBALL=https://github.com/gemini-project/gemini/releases/download/v1.1.2/gemini.tar.gz
+        ExecStartPre=/bin/mkdir -p /opt/
+        ExecStart=/opt/bin/curl-retry.sh --silent --location $GEM_RELEASE_TARBALL --output /tmp/gemini.tgz
+        ExecStart=/bin/tar xzvf /tmp/gemini.tgz -C /tmp/
+        ExecStart=/bin/tar xzvf /tmp/gemini/server/gemini-server-linux-amd64.tar.gz -C /opt
+        ExecStartPost=/bin/chmod o+rx -R /opt/gemini
+        ExecStartPost=/bin/ln -s /opt/gemini/server/bin/gemctl /opt/bin/
+        ExecStartPost=/bin/mv /tmp/gemini/examples/guestbook /home/core/guestbook-example
+        ExecStartPost=/bin/chown core. -R /home/core/guestbook-example
+        ExecStartPost=/bin/rm -rf /tmp/gemini
+        ExecStartPost=/bin/sed 's/# type: LoadBalancer/type: NodePort/' -i /home/core/guestbook-example/frontend-service.yaml
+        RemainAfterExit=yes
+        Type=oneshot
+        [Install]
+        WantedBy=gemini-master.target
+        WantedBy=gemini-node.target
+
+    - name: gem-apiserver.service
+      enable: true
+      content: |
+        [Unit]
+        After=install-gemini.service
+        Before=gem-controller-manager.service
+        Before=gem-scheduler.service
+        ConditionFileIsExecutable=/opt/gemini/server/bin/gem-apiserver
+        Description=Gemini API Server
+        Documentation=http://gemin.io/
+        Wants=install-gemini.service
+        ConditionHost=gem-00
+        [Service]
+        ExecStart=/opt/gemini/server/bin/gem-apiserver \
+            --insecure-bind-address=0.0.0.0 \
+            --advertise-address=$public_ipv4 \
+            --port=8080 \
+            $ETCD_SERVERS \
+            --service-cluster-ip-range=10.16.0.0/12 \
+            --cloud-provider=vagrant \
+            --logtostderr=true
+        Restart=always
+        RestartSec=10
+        [Install]
+        WantedBy=gemini-master.target
+
+    - name: gem-scheduler.service
+      enable: true
+      content: |
+        [Unit]
+        After=gem-apiserver.service
+        After=install-gemini.service
+        ConditionFileIsExecutable=/opt/gemini/server/bin/gem-scheduler
+        Description=Gemini Scheduler
+        Documentation=http://gemin.io/
+        Wants=gem-apiserver.service
+        ConditionHost=gem-00
+        [Service]
+        ExecStart=/opt/gemini/server/bin/gem-scheduler \
+            --logtostderr=true \
+            --master=127.0.0.1:8080
+        Restart=always
+        RestartSec=10
+        [Install]
+        WantedBy=gemini-master.target
+
+    - name: gem-controller-manager.service
+      enable: true
+      content: |
+        [Unit]
+        After=install-gemini.service
+        After=gem-apiserver.service
+        ConditionFileIsExecutable=/opt/gemini/server/bin/gem-controller-manager
+        Description=Gemini Controller Manager
+        Documentation=http://gemin.io/
+        Wants=gem-apiserver.service
+        Wants=install-gemini.service
+        ConditionHost=gem-00
+        [Service]
+        ExecStart=/opt/gemini/server/bin/gem-controller-manager \
+            --master=127.0.0.1:8080 \
+            --logtostderr=true
+        Restart=always
+        RestartSec=10
+        [Install]
+        WantedBy=gemini-master.target
+
+    - name: gemlet.service
+      enable: true
+      content: |
+        [Unit]
+        After=install-gemini.service
+        ConditionFileIsExecutable=/opt/gemini/server/bin/gemlet
+        Description=Gemini Gemlet
+        Documentation=http://gemin.io/
+        Wants=install-gemini.service
+        ConditionHost=!gem-00
+        [Service]
+        ExecStartPre=/bin/mkdir -p /etc/gemini/manifests/
+        ExecStart=/opt/gemini/server/bin/gemlet \
+            --docker-endpoint=unix:/var/run/weave/weave.sock \
+            --address=0.0.0.0 \
+            --port=10250 \
+            --hostname-override=%H \
+            --api-servers=http://gem-00:8080 \
+            --logtostderr=true \
+            --cluster-dns=10.16.0.3 \
+            --cluster-domain=gem.local \
+            --config=/etc/gemini/manifests/
+        Restart=always
+        RestartSec=10
+        [Install]
+        WantedBy=gemini-node.target
+
+    - name: gem-proxy.service
+      enable: true
+      content: |
+        [Unit]
+        After=install-gemini.service
+        ConditionFileIsExecutable=/opt/gemini/server/bin/gem-proxy
+        Description=Gemini Proxy
+        Documentation=http://gemin.io/
+        Wants=install-gemini.service
+        [Service]
+        ExecStart=/opt/gemini/server/bin/gem-proxy \
+             --master=http://gem-00:8080 \
+             --logtostderr=true
+        Restart=always
+        RestartSec=10
+        [Install]
+        WantedBy=gemini-master.target
+        WantedBy=gemini-node.target
+
+    - name: gem-create-addons.service
+      enable: true
+      content: |
+        [Unit]
+        After=install-gemini.service
+        ConditionFileIsExecutable=/opt/gemini/server/bin/gemctl
+        ConditionPathIsDirectory=/etc/gemini/addons/
+        ConditionHost=gem-00
+        Description=Gemini Addons
+        Documentation=http://gemin.io/
+        Wants=install-gemini.service
+        Wants=gem-apiserver.service
+        [Service]
+        Type=oneshot
+        RemainAfterExit=no
+        ExecStart=/bin/bash -c 'until /opt/gemini/server/bin/gemctl create -f /etc/gemini/addons/; do sleep 2; done'
+        SuccessExitStatus=1
+        [Install]
+        WantedBy=gemini-master.target

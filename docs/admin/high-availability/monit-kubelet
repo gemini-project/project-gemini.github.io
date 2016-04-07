@@ -1,0 +1,11 @@
+check process gemlet with pidfile /var/run/gemlet.pid
+group gemlet
+start program = "/etc/init.d/gemlet start"
+stop program = "/etc/init.d/gemlet stop"
+if does not exist then restart
+if failed
+  host 127.0.0.1
+  port 10255
+  protocol HTTP
+  request "/healthz"
+then restart

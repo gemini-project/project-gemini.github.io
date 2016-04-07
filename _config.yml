@@ -1,0 +1,29 @@
+name: Gemini
+markdown: kramdown
+kramdown:
+  input: GFM
+  html_to_native: true
+  hard_wrap: false
+  syntax_highlighter: rouge
+baseurl: /
+incremental: true
+
+safe: false
+lsi: false
+
+defaults:
+  -
+    scope:
+      path: ""
+    values:
+      version: "v0.1"
+      githubbranch: "release-0.1"
+      docsbranch: "master"
+  -
+    scope:
+      path: "docs"
+    values:
+      layout: docwithnav
+      showedit: true
+
+permalink: pretty
